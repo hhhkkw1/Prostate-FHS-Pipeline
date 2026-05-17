@@ -1,0 +1,10 @@
+numpy
+pandas
+nibabel
+SimpleITK
+scipy
+scikit-learn
+statsmodels
+tqdm
+matplotlib
+openpyxl
