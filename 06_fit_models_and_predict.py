@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import os
 from typing import Dict, List
 
@@ -7,6 +7,7 @@ import pandas as pd
 import statsmodels.api as sm
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, roc_auc_score
+from statsmodels.tools.sm_exceptions import PerfectSeparationError
 
 from pipeline_utils import detect_case_id_col, load_config, normalize_case_id
 
@@ -16,6 +17,18 @@ def canonical_case_id(value) -> str:
     if s.endswith(".0"):
         s = s[:-2]
     return s
+
+
+def map_t_stage_to_numeric(series: pd.Series) -> pd.Series:
+    if pd.api.types.is_numeric_dtype(series):
+        return pd.to_numeric(series, errors="coerce")
+    t_map = {
+        "T1": 0, "T1A": 0, "T1B": 0, "T1C": 0,
+        "T2A": 1, "T2B": 2, "T2C": 3,
+        "T3A": 4, "T3B": 4, "T4": 6,
+    }
+    clean = series.astype(str).str.strip().str.upper()
+    return clean.map(t_map)
 
 
 def build_outcome_if_missing(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
@@ -86,24 +99,51 @@ def evaluate_predictions(eval_df: pd.DataFrame, pred_col: str, y_col: str, model
 
 
 def extract_logistic_params(x: pd.DataFrame, y: pd.Series, model_name: str) -> pd.DataFrame:
-    x_sm = sm.add_constant(x.astype(float))
-    fit = sm.Logit(y.astype(int), x_sm).fit(disp=False)
+    x_num = x.astype(float).copy()
+    # Drop zero-variance columns to reduce singular matrix risk.
+    keep_cols = [c for c in x_num.columns if x_num[c].nunique(dropna=True) > 1]
+    x_num = x_num[keep_cols]
+    if x_num.shape[1] == 0:
+        return pd.DataFrame(
+            columns=["Model", "Variable", "Beta", "OR", "CI_lower", "CI_upper", "p_value"]
+        )
 
-    params = fit.params
-    conf = fit.conf_int()
-    pvals = fit.pvalues
+    x_sm = sm.add_constant(x_num)
+    y_int = y.astype(int)
 
-    out = pd.DataFrame(
-        {
-            "Model": model_name,
-            "Variable": params.index,
-            "Beta": params.values,
-            "OR": np.exp(params.values),
-            "CI_lower": np.exp(conf[0].values),
-            "CI_upper": np.exp(conf[1].values),
-            "p_value": pvals.values,
-        }
-    )
+    try:
+        fit = sm.Logit(y_int, x_sm).fit(disp=False)
+        params = fit.params
+        conf = fit.conf_int()
+        pvals = fit.pvalues
+
+        out = pd.DataFrame(
+            {
+                "Model": model_name,
+                "Variable": params.index,
+                "Beta": params.values,
+                "OR": np.exp(params.values),
+                "CI_lower": np.exp(conf[0].values),
+                "CI_upper": np.exp(conf[1].values),
+                "p_value": pvals.values,
+            }
+        )
+    except (np.linalg.LinAlgError, PerfectSeparationError):
+        # Fallback: regularized fit to avoid crash when matrix is singular / separated.
+        fit_reg = sm.Logit(y_int, x_sm).fit_regularized(disp=False, alpha=1e-6, maxiter=500)
+        params = fit_reg.params
+        out = pd.DataFrame(
+            {
+                "Model": model_name,
+                "Variable": params.index,
+                "Beta": params.values,
+                "OR": np.exp(params.values),
+                "CI_lower": np.nan,
+                "CI_upper": np.nan,
+                "p_value": np.nan,
+            }
+        )
+
     return out[out["Variable"] != "const"].reset_index(drop=True)
 
 
@@ -117,7 +157,9 @@ def main():
     args = parser.parse_args()
     cfg = load_config(args.config)
 
-    infile = cfg["paths"]["lasso_output_excel"]
+    infile = cfg["paths"].get("capra_output_excel", cfg["paths"]["lasso_output_excel"])
+    if (not os.path.exists(infile)) and ("lasso_output_excel" in cfg["paths"]):
+        infile = cfg["paths"]["lasso_output_excel"]
     pred_outfile = cfg["paths"]["prediction_output_excel"]
     param_outfile = cfg["paths"]["model_param_output_excel"]
 
@@ -126,6 +168,16 @@ def main():
     training_value = cfg["dataset_values"]["training"]
     internal_value = cfg["dataset_values"]["internal_val"]
     external_value = cfg["dataset_values"]["external_val"]
+    cc = cfg["clinical_columns"]
+
+    age_col = cc["age"]
+    psa_col = cc["psa"]
+    t_stage_col = cc["t_stage"]
+    pirads_col = cc["pirads"]
+    pct_pos_col = cc["pct_pos"]
+    gg_bp_col = cc["gg_bp"]
+    capra_col = cc["capra"]
+    habitat_col = cc["habitat_score"]
 
     df = pd.read_excel(infile)
     case_id_col = detect_case_id_col(df, cfg["columns"]["case_id_candidates"])
@@ -136,36 +188,42 @@ def main():
     required_cols = [
         split_col,
         y_col,
-        "age",
-        "PSA",
-        "pct_pos",
-        "T_score",
-        "GG_BP",
-        "PIRADS",
-        "CAPRA_score",
-        "FHS",
+        age_col,
+        psa_col,
+        pct_pos_col,
+        t_stage_col,
+        gg_bp_col,
+        pirads_col,
+        capra_col,
+        habitat_col,
     ]
-    if "FHS" not in df.columns and "Rad_score_1se" in df.columns:
-        df["FHS"] = df["Rad_score_1se"]
+    if habitat_col not in df.columns and "Rad_score_1se" in df.columns:
+        df[habitat_col] = df["Rad_score_1se"]
 
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
+    raw_t_stage = df[t_stage_col].copy()
+
     numeric_cols = [
-        "age",
-        "PSA",
-        "pct_pos",
-        "T_score",
-        "GG_BP",
-        "PIRADS",
-        "CAPRA_score",
-        "FHS",
+        age_col,
+        psa_col,
+        pct_pos_col,
+        gg_bp_col,
+        pirads_col,
+        capra_col,
+        habitat_col,
         y_col,
     ]
     for c in numeric_cols:
         df[c] = pd.to_numeric(df[c], errors="coerce")
 
+    # T stage may be text labels (e.g., T2a/T3b); map before numeric coercion.
+    df[t_stage_col] = map_t_stage_to_numeric(raw_t_stage)
+    unmapped_t = raw_t_stage[df[t_stage_col].isna() & raw_t_stage.notna()].astype(str).unique()
+    if len(unmapped_t) > 0:
+        print(f"Warning: unmapped T_stage values will be imputed: {sorted(unmapped_t)}")
     train_mask = df[split_col].astype(str).str.strip() == training_value
     train_df = df.loc[train_mask].copy()
     train_df = train_df[train_df[y_col].isin([0, 1])].copy()
@@ -173,8 +231,11 @@ def main():
         raise ValueError("No valid training rows with binary outcome.")
     train_df[y_col] = train_df[y_col].astype(int)
 
-    fill_cols = ["age", "PSA", "pct_pos", "T_score", "GG_BP", "PIRADS", "CAPRA_score", "FHS"]
-    medians = train_df[fill_cols].median()
+    fill_cols = [age_col, psa_col, pct_pos_col, t_stage_col, gg_bp_col, pirads_col, capra_col, habitat_col]
+    medians = train_df[fill_cols].median(numeric_only=True)
+    for c in fill_cols:
+        if c not in medians.index or not np.isfinite(medians[c]):
+            medians[c] = 0.0
     df[fill_cols] = df[fill_cols].fillna(medians)
 
     train_df = df.loc[train_mask].copy()
@@ -182,11 +243,17 @@ def main():
     train_df[y_col] = train_df[y_col].astype(int)
     y_train = train_df[y_col]
 
-    feat_clin = ["age", "PSA", "pct_pos", "T_score", "GG_BP"]
-    feat_image = ["PIRADS"]
-    feat_habitat = ["FHS"]
+    # Final NaN guard for model inputs.
+    if df[fill_cols].isna().any().any():
+        df[fill_cols] = df[fill_cols].fillna(0.0)
+    if train_df[fill_cols].isna().any().any():
+        train_df[fill_cols] = train_df[fill_cols].fillna(0.0)
+
+    feat_clin = [age_col, psa_col, pct_pos_col, t_stage_col, gg_bp_col]
+    feat_image = [pirads_col]
+    feat_habitat = [habitat_col]
     feat_combined = feat_clin + feat_image + feat_habitat
-    feat_capra = ["CAPRA_score"]
+    feat_capra = [capra_col]
 
     models = {
         "Clinical": LogisticRegression(max_iter=1000, solver="liblinear"),
@@ -249,3 +316,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

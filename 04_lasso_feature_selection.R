@@ -24,6 +24,8 @@ training_value <- cfg$dataset_values$training
 pattern <- cfg$features$habitat_prefix_pattern
 outcome_components <- unlist(cfg$outcome_components)
 lymph_col <- cfg$lymph_col
+clin_cols <- cfg$clinical_columns
+t_stage_col <- clin_cols$t_stage
 
 df <- readxl::read_excel(infile)
 
@@ -35,15 +37,30 @@ df$CaseID <- trimws(as.character(df$CaseID))
 
 if (!(outcome_col %in% names(df))) {
   missing_parts <- setdiff(c(outcome_components, lymph_col), names(df))
-  if (length(missing_parts) > 0) stop(paste("Missing columns to build AP_Status:", paste(missing_parts, collapse = ", ")))
+  if (length(missing_parts) > 0) {
+    stop(paste("Missing columns to build AP_Status:", paste(missing_parts, collapse = ", ")))
+  }
   df$Lymph_Calc <- ifelse(is.na(df[[lymph_col]]), 0, df[[lymph_col]])
   ap_mat <- df[, c(outcome_components, "Lymph_Calc")]
   df[[outcome_col]] <- as.integer(rowSums(ap_mat, na.rm = TRUE) > 0)
 }
 
-if (!("T_score" %in% names(df)) && ("T_new" %in% names(df))) {
-  t_map <- c("T1" = 0, "T1a" = 0, "T1b" = 0, "T1c" = 0, "T2a" = 1, "T2b" = 2, "T2c" = 3, "T3a" = 4, "T3b" = 5, "T4" = 6)
-  df$T_score <- as.numeric(t_map[trimws(as.character(df$T_new))])
+if (!(t_stage_col %in% names(df)) && !("T_score" %in% names(df))) {
+  stop(paste("Missing T-stage column:", t_stage_col))
+}
+if ("T_score" %in% names(df)) {
+  df$T_score <- as.numeric(df$T_score)
+} else {
+  if (is.numeric(df[[t_stage_col]]) || is.integer(df[[t_stage_col]])) {
+    df$T_score <- as.numeric(df[[t_stage_col]])
+  } else {
+    t_map <- c(
+      "T1" = 0, "T1a" = 0, "T1b" = 0, "T1c" = 0,
+      "T2a" = 1, "T2b" = 2, "T2c" = 3,
+      "T3a" = 4, "T3b" = 4, "T4" = 6
+    )
+    df$T_score <- as.numeric(t_map[trimws(as.character(df[[t_stage_col]]))])
+  }
 }
 
 if (!(split_col %in% names(df))) stop(paste("Missing split column:", split_col))
@@ -99,10 +116,15 @@ cols <- colnames(X_curr)
 if (length(cols) > 1) {
   for (i in 1:(length(cols) - 1)) {
     for (j in (i + 1):length(cols)) {
-      c1 <- cols[i]; c2 <- cols[j]
+      c1 <- cols[i]
+      c2 <- cols[j]
       if (c1 %in% drop_cols || c2 %in% drop_cols) next
       if (abs(corr_mat[i, j]) > 0.9) {
-        if (auc_scores[c1] >= auc_scores[c2]) drop_cols <- c(drop_cols, c2) else drop_cols <- c(drop_cols, c1)
+        if (auc_scores[c1] >= auc_scores[c2]) {
+          drop_cols <- c(drop_cols, c2)
+        } else {
+          drop_cols <- c(drop_cols, c1)
+        }
       }
     }
   }
@@ -145,7 +167,9 @@ coef_df <- data.frame(
 )
 
 intercept_val <- coef_df$Coef[coef_df$Feature == "(Intercept)"]
-feats_1se <- coef_df %>% dplyr::filter(Coef != 0, Feature != "(Intercept)") %>% dplyr::arrange(desc(abs(Coef)))
+feats_1se <- coef_df %>%
+  dplyr::filter(Coef != 0, Feature != "(Intercept)") %>%
+  dplyr::arrange(desc(abs(Coef)))
 
 X_all <- as.data.frame(df[, selected, drop = FALSE])
 X_all_scaled <- predict(preproc, X_all)
@@ -155,7 +179,10 @@ wb <- openxlsx::createWorkbook()
 openxlsx::addWorksheet(wb, "Data")
 openxlsx::writeData(wb, "Data", df)
 openxlsx::addWorksheet(wb, "Model_Coefs")
-coef_out <- rbind(data.frame(Feature = "(Intercept)", Coefficient = intercept_val), feats_1se %>% dplyr::rename(Coefficient = Coef))
+coef_out <- rbind(
+  data.frame(Feature = "(Intercept)", Coefficient = intercept_val),
+  feats_1se %>% dplyr::rename(Coefficient = Coef)
+)
 openxlsx::writeData(wb, "Model_Coefs", coef_out)
 openxlsx::addWorksheet(wb, "Selected_Features")
 openxlsx::writeData(wb, "Selected_Features", data.frame(Feature = selected))
