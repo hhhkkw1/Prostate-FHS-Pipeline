@@ -1,0 +1,68 @@
+{
+  "paths": {
+    "base_dir": "F:/RP_multib",
+    "input_excel": "F:/RP_multib/ALL.xlsx",
+    "raw_ivim_dir": "F:/RP_multib/ivim",
+    "roi_input_dir": "F:/RP_multib/prediction",
+    "roi_resampled_dir": "F:/RP_multib/prediction_resampled",
+    "ivim_resampled_dir": "F:/RP_multib/ivim_resampled",
+    "ivim_normalized_dir": "F:/RP_multib/ivim_normalized",
+    "cluster_output_dir": "F:/RP_multib/ivim_clustering_results",
+    "feature_output_excel": "F:/RP_multib/ALL_Radiomics_Features.xlsx",
+    "lasso_output_excel": "F:/RP_multib/ALL_LASSO_Output.xlsx",
+    "prediction_output_excel": "F:/RP_multib/ALL_Model_Predictions.xlsx",
+    "model_param_output_excel": "F:/RP_multib/ALL_Logistic_Params_and_Performance.xlsx",
+    "evaluation_output_excel": "F:/RP_multib/ALL_Model_Evaluation.xlsx",
+    "plot_dir": "F:/RP_multib/paper_pipeline_plots"
+  },
+  "columns": {
+    "case_id_candidates": [
+      "CaseID",
+      "ImageID"
+    ],
+    "split_col": "Dataset_Type",
+    "outcome_col": "AP_Status"
+  },
+  "dataset_values": {
+    "training": "Training",
+    "internal_val": "Internal_Val",
+    "external_val": "External_Val"
+  },
+  "outcome_components": [
+    "EPE",
+    "SVI",
+    "Margin",
+    "High_GG"
+  ],
+  "lymph_col": "Lymph",
+  "preprocess": {
+    "target_spacing": [
+      0.5,
+      0.5,
+      3.0
+    ],
+    "d_limits": [
+      0.0,
+      0.003
+    ],
+    "f_limits": [
+      0.0,
+      1.0
+    ],
+    "d_unit_factor": 1000000.0,
+    "f_unit_factor": 1000.0,
+    "median_filter_size": 3
+  },
+  "kmeans": {
+    "max_workers": 12,
+    "sample_per_case": 5000,
+    "random_seed": 42,
+    "k_min": 2,
+    "k_max": 8,
+    "fixed_k": 4
+  },
+  "features": {
+    "habitat_prefix_pattern": "^h[0-9]+_",
+    "num_habitats": 4
+  }
+}
