@@ -61,6 +61,7 @@ def worker_load_and_sample(task: Tuple) -> Optional[Dict[str, np.ndarray]]:
 def worker_predict_and_save(task: Tuple) -> Optional[Dict]:
     (
         row_dict,
+        split_col,
         centers,
         n_clusters,
         norm_ivim_dir,
@@ -68,7 +69,7 @@ def worker_predict_and_save(task: Tuple) -> Optional[Dict]:
         cluster_output_dir,
     ) = task
     case_id = canonical_case_id(row_dict["CaseID"])
-    split_value = row_dict["Dataset_Type"]
+    split_value = row_dict.get(split_col, None)
 
     d_path = os.path.join(norm_ivim_dir, f"{case_id}_ivim_d_norm.nii.gz")
     f_path = os.path.join(norm_ivim_dir, f"{case_id}_ivim_f_norm.nii.gz")
@@ -103,7 +104,7 @@ def worker_predict_and_save(task: Tuple) -> Optional[Dict]:
         counts = pd.Series(labels).value_counts().sort_index()
         row = {
             "CaseID": case_id,
-            "Dataset_Type": split_value,
+            split_col: split_value,
             "Total_Volume_ml": total_volume_ml,
         }
         for i in range(n_clusters):
@@ -213,6 +214,7 @@ def determine_k_and_plot(training_matrix: np.ndarray, cfg: dict) -> Tuple[int, p
 def apply_model_to_all(final_model: KMeans, df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     paths = cfg["paths"]
     km_cfg = cfg["kmeans"]
+    split_col = cfg["columns"]["split_col"]
     max_workers = int(km_cfg["max_workers"])
 
     norm_ivim_dir = paths["ivim_normalized_dir"]
@@ -228,6 +230,7 @@ def apply_model_to_all(final_model: KMeans, df: pd.DataFrame, cfg: dict) -> pd.D
         tasks.append(
             (
                 row,
+                split_col,
                 centers,
                 n_clusters,
                 norm_ivim_dir,

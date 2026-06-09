@@ -8,20 +8,46 @@
     "ivim_resampled_dir": "F:/RP_multib/ivim_resampled",
     "ivim_normalized_dir": "F:/RP_multib/ivim_normalized",
     "cluster_output_dir": "F:/RP_multib/ivim_clustering_results",
-    "feature_output_excel": "F:/RP_multib/ALL_Radiomics_Features.xlsx",
-    "lasso_output_excel": "F:/RP_multib/ALL_LASSO_Output.xlsx",
-    "prediction_output_excel": "F:/RP_multib/ALL_Model_Predictions.xlsx",
-    "model_param_output_excel": "F:/RP_multib/ALL_Logistic_Params_and_Performance.xlsx",
-    "evaluation_output_excel": "F:/RP_multib/ALL_Model_Evaluation.xlsx",
-    "plot_dir": "F:/RP_multib/paper_pipeline_plots"
+    "feature_output_excel": "I:/RP_multib/re/original Data.xlsx",
+    "lasso_output_excel": "I:/RP_multib/re/ALL_LASSO_Output.xlsx",
+    "capra_output_excel": "I:/RP_multib/re/ALL_LASSO_Output_with_CAPRA.xlsx",
+    "prediction_output_excel": "I:/RP_multib/re/ALL_Model_Predictions.xlsx",
+    "model_param_output_excel": "I:/RP_multib/re/ALL_Logistic_Params_and_Performance.xlsx",
+    "evaluation_output_excel": "I:/RP_multib/re/ALL_Model_Evaluation.xlsx",
+    "plot_dir": "I:/RP_multib/re"
   },
   "columns": {
     "case_id_candidates": [
+      "Study_ID",
       "CaseID",
       "ImageID"
     ],
-    "split_col": "Dataset_Type",
+    "split_col": "Cohort",
     "outcome_col": "AP_Status"
+  },
+  "clinical_columns": {
+    "age": "Age",
+    "psa": "Preoperative_PSA",
+    "t_stage": "T_stage",
+    "pirads": "PI-RADS",
+    "pct_pos": "pct_pos",
+    "gg_bp": "GG_BP",
+    "capra": "CAPRA_score",
+    "habitat_score": "FHS"
+  },
+  "capra_columns": {
+    "gs_candidates": [
+      "GS_BP",
+      "GS_PB"
+    ],
+    "positive_cores_candidates": [
+      "阳性针数",
+      "Positive_Cores"
+    ],
+    "negative_cores_candidates": [
+      "阴性针数",
+      "Negative_Cores"
+    ]
   },
   "dataset_values": {
     "training": "Training",
@@ -31,10 +57,10 @@
   "outcome_components": [
     "EPE",
     "SVI",
-    "Margin",
+    "PSM",
     "High_GG"
   ],
-  "lymph_col": "Lymph",
+  "lymph_col": "LNI",
   "preprocess": {
     "target_spacing": [
       0.5,
