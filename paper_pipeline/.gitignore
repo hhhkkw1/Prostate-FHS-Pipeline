@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.Rhistory
+.RData
+
+# Optional: ignore generated outputs
+*.xlsx
+*.tiff
+*.png
+data/
+outputs/
+plots/
+*.csv

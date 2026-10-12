@@ -1,0 +1,117 @@
+{
+  "paths": {
+    "base_dir": ".",
+    "input_excel": "data/ALL.xlsx",
+    "raw_ivim_dir": "data/ivim",
+    "roi_input_dir": "data/roi",
+    "roi_resampled_dir": "outputs/roi_resampled",
+    "ivim_resampled_dir": "outputs/ivim_resampled",
+    "ivim_normalized_dir": "outputs/ivim_normalized",
+    "cluster_output_dir": "outputs/habitat_maps",
+    "feature_output_excel": "outputs/Habitat_Features.xlsx",
+    "lasso_output_excel": "outputs/LASSO_Output.xlsx",
+    "capra_output_excel": "outputs/LASSO_Output_with_CAPRA.xlsx",
+    "prediction_output_excel": "outputs/Model_Predictions.xlsx",
+    "model_param_output_excel": "outputs/Logistic_Parameters.xlsx",
+    "evaluation_output_excel": "outputs/Model_Evaluation.xlsx",
+    "plot_dir": "plots"
+  },
+  "columns": {
+    "case_id_candidates": [
+      "Study_ID",
+      "CaseID",
+      "ImageID"
+    ],
+    "split_col": "Cohort",
+    "outcome_col": "AP_Status"
+  },
+  "clinical_columns": {
+    "age": "Age",
+    "psa": "Preoperative_PSA",
+    "t_stage": "T_stage",
+    "pirads": "PI-RADS",
+    "pct_pos": "pct_pos",
+    "gg_bp": "GG_BP",
+    "capra": "CAPRA_score",
+    "habitat_score": "FHS"
+  },
+  "capra_columns": {
+    "gs_candidates": [
+      "GS_BP",
+      "GS_PB"
+    ],
+    "positive_cores_candidates": [
+      "阳性针数",
+      "Positive_Cores"
+    ],
+    "negative_cores_candidates": [
+      "阴性针数",
+      "Negative_Cores"
+    ]
+  },
+  "dataset_values": {
+    "training": "Training",
+    "internal_val": "Internal_Val",
+    "external_val": "External_Val"
+  },
+  "outcome_components": [
+    "EPE",
+    "SVI",
+    "PSM",
+    "High_GG"
+  ],
+  "lymph_col": "LNI",
+  "preprocess": {
+    "target_spacing": [
+      0.5,
+      0.5,
+      3.0
+    ],
+    "d_limits": [
+      0.0,
+      0.003
+    ],
+    "f_limits": [
+      0.0,
+      1.0
+    ],
+    "d_unit_factor": 1000000.0,
+    "f_unit_factor": 1000.0,
+    "median_filter_size": 3
+  },
+  "kmeans": {
+    "max_workers": 12,
+    "sample_per_case": 5000,
+    "random_seed": 42,
+    "k_min": 2,
+    "k_max": 8,
+    "fixed_k": 4
+  },
+  "features": {
+    "habitat_prefix_pattern": "^h[0-9]+_",
+    "num_habitats": 4
+  },
+  "analysis": {
+    "seed": 123,
+    "brier_bootstrap": 2000,
+    "dpi": 600,
+    "association_cohorts": [
+      "Training"
+    ]
+  },
+  "survival": {
+    "enabled": true,
+    "event_col": "BCR",
+    "time_col": "BCRmonth",
+    "min_censored_followup_months": 0,
+    "times_months": [
+      12,
+      24,
+      36,
+      48,
+      60
+    ],
+    "cindex_bootstrap": 3000,
+    "auc_bootstrap": 1000
+  }
+}
